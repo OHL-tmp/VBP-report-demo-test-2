@@ -803,7 +803,7 @@ def card_contract_wo_vbc_adjustment(app):
 										dbc.ModalFooter(
 											dbc.Button('SAVE', id = 'close-edit-rebate-1', size="sm")
 											)
-										], id = 'modal-edit-rebate-1'),
+										], id = 'modal-edit-rebate-1', backdrop = 'static'),
 									], width=2
                                 ),
                             ],
@@ -874,7 +874,7 @@ def card_vbc_contract(app):
                                         dbc.ModalFooter(
                                             dbc.Button('SAVE', id = 'close-edit-rebate-2', size="sm")
                                             )
-                                        ], id = 'modal-edit-rebate-2'),
+                                        ], id = 'modal-edit-rebate-2', backdrop = 'static'),
                                     ], width=2
                                 ),
 
