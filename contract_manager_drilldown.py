@@ -569,7 +569,7 @@ def card_table2_performance_drilldown(app):
                 style={"box-shadow":"0 4px 8px 0 rgba(0, 0, 0, 0.05), 0 6px 20px 0 rgba(0, 0, 0, 0.05)", "border":"none", "border-radius":"0.5rem"}
             )
 
-layout = create_layout(app)
+app.layout = create_layout(app)
 
 @app.callback(
     Output("modal-all-driver","is_open"),
@@ -912,6 +912,10 @@ def datatable_data_selection(v1, v2, v3, d1, d2, f1, f2, m):
         df_drilldown_filtered = df_drilldown
         cate_cnt = cate_mix_cnt
 
+    df_drilldown_filtered['YTD IP Utilization'] = df_drilldown_filtered.apply(lambda x: x['YTD Utilization'] if x['Service Category'] == 'Inpatient' else 0, axis = 1)
+    df_drilldown_filtered['Annualized IP Utilization'] = df_drilldown_filtered.apply(lambda x: x['Annualized Utilization'] if x['Service Category'] == 'Inpatient' else 0, axis = 1)
+    df_drilldown_filtered['Benchmark IP Utilization'] = df_drilldown_filtered.apply(lambda x: x['Benchmark Utilization'] if x['Service Category'] == 'Inpatient' else 0, axis = 1)
+
     table_column = []
     selected_dimension = []
     if v1 is not None:
@@ -923,14 +927,14 @@ def datatable_data_selection(v1, v2, v3, d1, d2, f1, f2, m):
 
     table_column.extend(list(set(selected_dimension + ['Service Category', 'Sub Category'])))
     table_column.append("Pt Count")
-    percent_list = ['Diff % from Benchmark Utilization', 'Diff % from Benchmark Total Cost', 'Diff % from Benchmark Unit Cost', 'Patient %']
+    percent_list = ['Diff % from Benchmark Utilization', 'Diff % from Benchmark Total Cost', 'Diff % from Benchmark Unit Cost', 'Patient %', 'Diff % from Hospitalization Rate per Patient']
     dollar_list = ['YTD Total Cost', 'Annualized Total Cost', 'Benchmark Total Cost', 'YTD Unit Cost', 'Annualized Unit Cost', 'Benchmark Unit Cost']
     if len(selected_dimension) > 0:
 #        ptct_dimension = set(selected_dimension + ['Service Category', 'Sub Category'])
         table_column.extend(measure_ori) 
         df_agg_pre = df_drilldown_filtered[table_column].groupby(by = list(set(selected_dimension + ['Service Category', 'Sub Category']))).sum().reset_index()
         df_agg = df_agg_pre[table_column].groupby(by = selected_dimension).agg({'Pt Count':'mean', 'YTD Utilization':'sum', 'Annualized Utilization':'sum', 'Benchmark Utilization':'sum', 
-            'YTD Total Cost':'sum', 'Annualized Total Cost':'sum', 'Benchmark Total Cost':'sum'}).reset_index()
+            'YTD Total Cost':'sum', 'Annualized Total Cost':'sum', 'Benchmark Total Cost':'sum', 'YTD IP Utilization':'sum', 'Annualized IP Utilization':'sum', 'Benchmark IP Utilization':'sum'}).reset_index()
 #        df_agg['Pt Count'] = df_agg['Pt Count']/cate_cnt
         df_agg['Patient %'] = df_agg['Pt Count']/995000
         df_agg['YTD Utilization'] = df_agg['YTD Utilization']/df_agg['Pt Count']
@@ -945,6 +949,10 @@ def datatable_data_selection(v1, v2, v3, d1, d2, f1, f2, m):
         df_agg['Annualized Unit Cost'] = df_agg['Annualized Total Cost']/df_agg['Annualized Utilization']
         df_agg['Benchmark Unit Cost'] = df_agg['Benchmark Total Cost']/df_agg['Benchmark Utilization']
         df_agg['Diff % from Benchmark Unit Cost'] = (df_agg['Annualized Unit Cost'] - df_agg['Benchmark Unit Cost'])/df_agg['Benchmark Unit Cost']
+        df_agg['YTD Hospitalization Rate per Patient'] = df_agg['YTD IP Utilization']/df_agg['Pt Count']
+        df_agg['Annualized Hospitalization Rate per Patient'] = df_agg['Annualized IP Utilization']/df_agg['Pt Count']
+        df_agg['Benchmark Hospitalization Rate per Patient'] = df_agg['Benchmark IP Utilization']/df_agg['Pt Count']
+        df_agg['Diff % from Benchmark Hospitalization Rate per Patient'] = (df_agg['Annualized IP Utilization'] - df_agg['Benchmark IP Utilization'])/df_agg['Benchmark IP Utilization']
 #        df_agg.style.format({'Diff % from Target Utilization' : "{:.2%}", 'Diff % from Target Total Cost': "{:.2%}", 'Diff % from Target Unit Cost' : "{:.2%}"})
 #        df_agg.reset_index(inplace = True)
         show_column = selected_dimension + ['Patient %'] + m 
@@ -963,7 +971,7 @@ def datatable_data_selection(v1, v2, v3, d1, d2, f1, f2, m):
 
 
 if __name__ == "__main__":
-    app.run_server(host="127.0.0.1",debug=True)
+    app.run_server(host="127.0.0.1",debug=True,port = 8052)
 
 
 
