@@ -8,6 +8,8 @@ Created on Wed Apr 15 11:01:53 2020
 import pandas as pd
 import numpy as np
 from numpy import arange
+import itertools
+
 import plotly
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -21,6 +23,8 @@ import dash_table.FormatTemplate as FormatTemplate
 import dash_daq as daq
 
 df_dim_order=pd.read_csv("data/dimvalue_ordering.csv")
+
+measure_library = pd.read_csv("data/measure_library.csv")
 
 colors={'blue':'rgba(18,85,222,100)','yellow':'rgba(246,177,17,100)','transparent':'rgba(255,255,255,0)','grey':'rgba(191,191,191,100)',
        'lightblue':'rgba(143,170,220,100)'}
@@ -925,7 +929,7 @@ def drill_bubble(df):
     return fig
 
 
-def drillgraph_table(df_table,tableid,dim):
+def drillgraph_table_old(df_table,tableid,dim):
     tbl=dash_table.DataTable(
         id=tableid,
         data=df_table.to_dict('records'),
@@ -965,7 +969,7 @@ def drillgraph_table(df_table,tableid,dim):
     )
     return tbl
 
-def drillgraph_lv1(df,tableid,dim):
+def drillgraph_lv1_old(df,tableid,dim):
 
     df=df.merge(df_dim_order[df_dim_order['dimension']==df.columns[0]],how='left',left_on=df.columns[0],right_on='value').sort_values(by='ordering')
     df_table=df[['YTD Avg Episode Cost']].T
@@ -1012,6 +1016,143 @@ def drillgraph_lv1(df,tableid,dim):
     
     
     return drillgraph
+
+def data_bars_diverging(df, column,col_max, color_above='#FF4136', color_below='#3D9970'):
+
+#   col_max=df[column].max()
+    styles = []
+    for i in df[column].to_list():
+
+        bound_percentage = round(i/col_max/2,4) * 100
+
+        if i>0:
+            bound_percentage=bound_percentage+50
+            styles.append({
+                'if': {
+                    'filter_query': (
+                        '{{{column}}} = {value}'
+                    ).format(column=column, value=i),
+                    'column_id': column
+                },
+                'background': (
+                    """
+                        linear-gradient(90deg,
+                        white 0%,
+                        white 50%,
+                        {color_above} 50%,
+                        {color_above} {bound_percentage}%,
+                        white {bound_percentage}%,
+                        white 100%)
+                    """.format(bound_percentage=bound_percentage,color_above=color_above)
+                ),
+                'paddingBottom': 2,
+                'paddingTop': 2,
+                'textAlign':'start',
+                'paddingLeft':'7.5rem',
+                'color':color_above,
+            })
+
+        else :
+            bound_percentage=50+bound_percentage
+            styles.append({
+                'if': {
+                    'filter_query': (
+                        '{{{column}}} = {value}' 
+                    ).format(column=column, value=i),
+                    'column_id': column
+                },
+                'background': (
+                    """
+                        linear-gradient(90deg,
+                        white 0%,
+                        white  {bound_percentage}%,
+                        {color_below} {bound_percentage}%,
+                        {color_below} 50%,
+                        white 50%,
+                        white 100%)
+                    """.format(bound_percentage=bound_percentage,color_below=color_below)
+                ),
+                'paddingBottom': 2,
+                'paddingTop': 2,
+                'textAlign':'start',
+                'paddingLeft':'10.5rem',
+                'color':color_below,
+            })
+            
+
+
+    return styles
+
+def drillgraph_lv1(df_table,tableid,dim):
+
+    df_table=df_table.merge(df_dim_order[df_dim_order['dimension']==df_table.columns[0]],how='left',left_on=df_table.columns[0],right_on='value').sort_values(by='ordering')  
+    
+#    drillgraph= [html.Div([drillgraph_table(df,tableid,dim)],style={"padding-left":"3rem","padding-right":"5rem"}),]
+    
+#    return drillgraph
+
+#def drillgraph_table(df_table,tableid,dim):
+#    df1=df_table[0:len(df_table)-1].sort_values(by='Contribution to Overall Performance Difference',ascending= 'desc')
+ #   df_table=pd.concat([df1,df_table.tail(1)])
+
+    col_max=max(df_table['Contribution to Overall Performance Difference'].max(),df_table['% Cost Diff from Benchmark'].max())
+
+    tbl=dash_table.DataTable(
+        id=tableid,
+        data=df_table.to_dict('records'),
+        columns=[ 
+        {'id': dim, 'name': dim} ,
+        {'id': 'Patient %', 'name': 'Patient %','type': 'numeric',"format":FormatTemplate.percentage(1)} ,
+        {'id': 'Cost %', 'name': 'Cost %','type': 'numeric',"format":FormatTemplate.percentage(1)} ,
+        {'id': 'YTD Avg Episode Cost', 'name': 'YTD Avg Episode Cost','type': 'numeric',"format":FormatTemplate.money(0)} ,
+        {'id': '% Cost Diff from Benchmark', 'name': '% Cost Diff from Benchmark','type': 'numeric',"format":FormatTemplate.percentage(1)} ,
+        {'id': 'Contribution to Overall Performance Difference', 'name': 'Contribution to Overall Performance Difference','type': 'numeric',"format":FormatTemplate.percentage(1)} ,
+         ],
+        row_selectable="single",
+        selected_rows=[len(df_table)-1],
+        sort_action="custom",
+        sort_mode='single',
+#        sort_by=[{"column_id":"Contribution to Overall Performance Difference","direction":"desc"},],
+        style_data={
+            'whiteSpace': 'normal',
+            'height': 'auto'
+        },
+
+        style_data_conditional=(
+        data_bars_diverging(df_table, '% Cost Diff from Benchmark',col_max) +
+        data_bars_diverging(df_table, 'Contribution to Overall Performance Difference',col_max)+
+        [{'if': {'column_id':'% Cost Diff from Benchmark'},
+             
+             'width': '20rem',
+            }, 
+        {'if': {'column_id': 'Contribution to Overall Performance Difference'},
+             
+             'width': '20rem',
+            },
+
+        ]
+        ),
+       
+        style_cell={
+            'textAlign': 'center',
+            'font-family':'NotoSans-Condensed',
+            'fontSize':14
+        },
+        
+        style_header={
+            'height': '4rem',
+            'minWidth': '3rem',
+            'maxWidth':'3rem',
+            'whiteSpace': 'normal',
+            'backgroundColor': "#f1f6ff",
+            'fontWeight': 'bold',
+            'font-family':'NotoSans-CondensedLight',
+            'fontSize':16,
+            'color': '#1357DD',
+            'text-align':'center',
+        },
+    )
+    return tbl
        
    
 def dashtable_lv3(df,dimension,tableid,row_select):#row_select: numeric 0 or 1
@@ -1034,7 +1175,7 @@ def dashtable_lv3(df,dimension,tableid,row_select):#row_select: numeric 0 or 1
         columns=[
         {"name": ["", dimension], "id": dimension},
         {"name": ["Average CHF Related Cost Per Patient", "YTD Avg Cost"], "id": "YTD Avg Episode Cost",'type': 'numeric',"format":FormatTemplate.money(0)},
-        {"name": ["Average CHF Related Cost Per Patient", "% Diff from Benchmark"], "id": "% Cost Diff from Target",'type': 'numeric',"format":FormatTemplate.percentage(1)},
+        {"name": ["Average CHF Related Cost Per Patient", "% Diff from Benchmark"], "id": "% Cost Diff from Benchmark",'type': 'numeric',"format":FormatTemplate.percentage(1)},
         {"name": ["Average CHF Related Cost Per Patient", "Contribution to Overall Performance Difference"], "id": "Contribution to Overall Performance Difference",'type': 'numeric',"format":FormatTemplate.percentage(1)},
         {"name": ["Average Utilization Rate Per Patient", "YTD Avg Utilization Rate"], "id": "YTD Avg Utilization Rate",'type': 'numeric',"format":Format( precision=1, scheme=Scheme.fixed,),},
         {"name": ["Average Utilization Rate Per Patient", "% Diff from Benchmark"], "id": "% Util Diff from Target",'type': 'numeric',"format":FormatTemplate.percentage(1)},
@@ -1097,7 +1238,7 @@ def drilldata_process(df_drilldown,dimension,dim1='All',f1='All',dim2='All',f2='
 
     df_pre2=df_pre.groupby(list(np.unique([dimension,'Service Category', 'Sub Category'])))[df_pre.columns[14:]].agg(np.sum).reset_index()
     
-    df=df_pre2.groupby([dimension]).agg(YTD_Total_cost=pd.NamedAgg(column='YTD Total Cost',aggfunc=sum)
+    df_all=df_pre2.groupby([dimension]).agg(YTD_Total_cost=pd.NamedAgg(column='YTD Total Cost',aggfunc=sum)
                                              ,Annualized_Total_cost=pd.NamedAgg(column='Annualized Total Cost',aggfunc=sum)
                                              ,Target_Total_cost=pd.NamedAgg(column='Benchmark Total Cost',aggfunc=sum)
                                              ,YTD_Utilization=pd.NamedAgg(column='YTD Utilization',aggfunc=sum)
@@ -1105,6 +1246,14 @@ def drilldata_process(df_drilldown,dimension,dim1='All',f1='All',dim2='All',f2='
                                              ,Target_Utilization=pd.NamedAgg(column='Benchmark Utilization',aggfunc=sum)
                                              ,Pt_Count=pd.NamedAgg(column='Pt Count',aggfunc=np.mean)
                                              ).reset_index()
+    df_ip=df_pre2[df_pre2['Service Category']=='Inpatient'].groupby([dimension]).agg(
+                                             YTD_Utilization_ip=pd.NamedAgg(column='YTD Utilization',aggfunc=sum),
+                                             Annualized_Utilization_ip=pd.NamedAgg(column='Annualized Utilization',aggfunc=sum),
+                                             Target_Utilization_ip=pd.NamedAgg(column='Benchmark Utilization',aggfunc=sum),
+                                             ).reset_index()
+
+    df=pd.merge(df_all,df_ip,how='left',on=dimension)
+
     allvalue=df.sum().values 
     allvalue[0]='All'
     if dimension in ['Service Category', 'Sub Category']:
@@ -1117,12 +1266,15 @@ def drilldata_process(df_drilldown,dimension,dim1='All',f1='All',dim2='All',f2='
         df.loc[len(df)-1]=otherlist
   
     df.loc[len(df)] = allvalue
+
+    df['Patient %'] = df['Pt_Count']/(df.tail(1)['Pt_Count'].values[0])
+    df['Cost %'] = df['YTD_Total_cost']/(df.tail(1)['YTD_Total_cost'].values[0])
     
     df['YTD Avg Episode Cost']=df['YTD_Total_cost']/df['Pt_Count']
     df['Target Avg Episode Cost']=df['Target_Total_cost']/df['Pt_Count']
     df['Annualized Avg Episode Cost']=df['Annualized_Total_cost']/df['Pt_Count']
 
-    df['% Cost Diff from Target']=(df['Annualized Avg Episode Cost']-df['Target Avg Episode Cost'])/df['Target Avg Episode Cost']
+    df['% Cost Diff from Benchmark']=(df['Annualized Avg Episode Cost']-df['Target Avg Episode Cost'])/df['Target Avg Episode Cost']
     df['Contribution to Overall Performance Difference']=(df['Annualized_Total_cost']-df['Target_Total_cost'])/allvalue[3]
 
     df['YTD Avg Utilization Rate']=df['YTD_Utilization']/df['Pt_Count']
@@ -1136,6 +1288,14 @@ def drilldata_process(df_drilldown,dimension,dim1='All',f1='All',dim2='All',f2='
     df['Annualized Avg Cost per Unit']=df['Annualized_Total_cost']/df['Annualized_Utilization']
 
     df['% Unit Cost Diff from Target']=(df['Annualized Avg Cost per Unit']-df['Target Avg Cost per Unit'])/df['Target Avg Cost per Unit']
+
+
+    df['YTD Hospitalization Rate']=df['YTD_Utilization_ip']/df['Pt_Count']
+    df['Target Hospitalization Rate']=df['Target_Utilization_ip']/df['Pt_Count']
+    df['Annualized Hospitalization Rate']=df['Annualized_Utilization_ip']/df['Pt_Count']
+
+    df['% Hospitalization Rate Diff from Benchmark']=(df['Annualized Hospitalization Rate']-df['Target Hospitalization Rate'])/df['Target Hospitalization Rate']
+    df['Contribution to Overall Hospitalization Rate Difference']=(df['Annualized Hospitalization Rate']-df['Target Hospitalization Rate'])/(df.tail(1)['Target Hospitalization Rate'].values[0])
     
     return df
 
@@ -1674,3 +1834,184 @@ def table_factor_doc(df,tableid='factor_doc'):
     )
     return table
 
+
+
+def measure_lib(df):
+
+    domain_list=["Cost Reduction","Improving Disease Outcome","Increasing Patient Safety","Better Patient Experience"]
+
+#   df['detail_fstrow']=df['Detail'].apply(lambda x: str(x)[0:str(x).find(';')])
+
+    df['detail']=df['Detail'].apply(lambda x: str(x).replace(';','  \n'))   
+    
+    table=dash_table.DataTable(
+        data=df.to_dict('records'),
+#       id='table-measure-setup',
+        columns=[
+        {"name": 'Triple Aim', "id": "Triple Aim"},
+        {"name": 'Domain', "id": "Domain"},
+        {"name": 'Category', "id": "Category"},
+        {"name": 'Metrics', "id": "Metrics"},
+        {"name": 'Published VBP Agreement Counts', "id": "Published VBP Agreement Counts"},
+#       {"name": 'Detail', "id": "detail_fstrow"},
+        ],
+
+#       fixed_rows={'headers': True},
+
+#       filter_action="native",
+
+        css=[
+        {
+            'selector': 'dash-table-tooltip', 
+            'rule': 'font-family:"NotoSans-CondensedLight"'}],
+
+        tooltip_conditional=[
+        {'if': { 'column_id':'Published VBP Agreement Counts',
+                'row_index':c
+                    },
+        'value': df['detail'][c],
+        'type': 'markdown',
+            
+        }
+        for c in [0,2,5,6,7,9,10,12,18,20,29,30,47,]
+        ],
+
+        tooltip_duration=None,
+        style_data={
+                'color': 'black', 
+                'backgroundColor': 'white',
+                'font-family': 'NotoSans-CondensedLight',
+                'width':'4rem',
+                'minWidth': '4rem',
+                'maxWidth':'14rem',
+                #'border':'1px solid grey',
+                'border-left': '1px solid #bfbfbf',
+                'border-right': '1px solid #bfbfbf',
+
+        },
+        style_data_conditional=[
+            { 'if': {
+                    'column_id':'Triple Aim',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(248,203,173,0.8)',#rgba(252,228,214,1)
+                'border-top':'1px solid rgba(248,203,173,0.8)',
+                'border-bottom':'1px solid rgba(248,203,173,0.8)',
+            } if c in range(0,10) else
+            { 'if': {
+                    'column_id':'Triple Aim',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(180,198,231,0.8)',#rgba(221,235,247,1)
+                'border-top':'1px solid rgba(180,198,231,0.8)',
+                'border-bottom':'1px solid rgba(180,198,231,0.8)',
+            } if c in range(10,35) else
+            { 'if': {
+                    'column_id':'Triple Aim',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(198,224,186,0.8)',#rgba(226,239,218,1)
+                'border-top':'1px solid rgba(198,224,186,0.8)',
+                'border-bottom':'1px solid rgba(198,224,186,0.8)',
+            }
+            for c in range(len(df)) 
+
+        ]+[
+            { 'if': {
+                    'column_id':'Domain',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(248,203,173,0.5)',
+                'border-top':'1px solid rgba(248,203,173,0.5)',
+                'border-bottom':'1px solid rgba(248,203,173,0.5)',
+            } if c in range(0,6) else
+            { 'if': {
+                    'column_id':'Domain',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(180,198,231,0.5)',
+                'border-top':'1px solid rgba(180,198,231,0.5)',
+                'border-bottom':'1px solid rgba(180,198,231,0.5)',
+            } if c in range(10,31) else
+            { 'if': {
+                    'column_id':'Domain',
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(198,224,186,0.5)',
+                'border-top':'1px solid rgba(198,224,186,0.5)',
+                'border-bottom':'1px solid rgba(198,224,186,0.5)',
+            } if c in list(range(35,41))+list(range(48,50)) else
+
+            { 'if': {
+                    'column_id':'Domain',
+                    'row_index':c
+                    },
+                'backgroundColor':'white'
+            }
+
+            for c in range(len(df))
+
+        ]+[
+            { 'if': {
+                    'column_id':col,
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(248,203,173,0.2)',
+                'border-top':'1px solid rgba(248,203,173,0.2)',
+                'border-bottom':'1px solid rgba(248,203,173,0.2)',
+            } if c in [0,3,6,8] else
+            { 'if': {
+                    'column_id':col,
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(180,198,231,0.2)',
+                'border-top':'1px solid rgba(180,198,231,0.2)',
+                'border-bottom':'1px solid rgba(180,198,231,0.2)',
+            } if c in [10,11,12,13,14,16,20,24,25,29,30,33,34] else
+            { 'if': {
+                    'column_id':col,
+                    'row_index':c
+                    },
+                'backgroundColor':'rgba(198,224,186,0.2)',
+                'border-top':'1px solid rgba(198,224,186,0.2)',
+                'border-bottom':'1px solid rgba(198,224,186,0.2)',
+            } if c in [35,36,39,41,42,46,48] else
+
+            { 'if': {
+                    'column_id':col,
+                    'row_index':c
+                    },
+                'backgroundColor':'white'
+            }
+
+            for col,c in itertools.product(['Category','Metrics','Published VBP Agreement Counts'],range(len(df)))
+
+        ],
+#       style_table={'height': '3000px', 'overflowY': 'scroll'},
+        style_cell={
+            'textAlign': 'center',
+            'font-family':'NotoSans-Regular',
+            'fontSize':12,
+            'border':'0px',
+            'height': '1.5rem',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+            'maxWidth': 0,
+        },
+
+        style_header={
+            'height': '2.5rem',
+            'minWidth': '3rem',
+            'maxWidth':'3rem',
+            'whiteSpace': 'normal',
+            'backgroundColor': '#f1f6ff',
+            'fontWeight': 'bold',
+            'font-family':'NotoSans-CondensedLight',
+            'fontSize':14,
+            'color': '#1357DD',
+            'text-align':'center',
+            'border':'1px solid #bfbfbf',
+        },
+    )
+
+    return table
