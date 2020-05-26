@@ -4,6 +4,7 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_table
 
+import os
 import pandas as pd
 import numpy as np
 import datetime
@@ -115,7 +116,8 @@ def input_session():
 					], style={"padding-top":"1rem"}),
 				dbc.Row([
 					dbc.Col("Assumptions for Each Measure", style={"font-family":"NotoSans-Regular","font-size":"1rem"}),
-					dbc.Col(html.A('Download the template file'), style={"font-family":"NotoSans-Regular","font-size":"1rem","text-decoration":"underline","color":"#1357DD"}),
+#					dbc.Col(html.A('Download the template file'), style={"font-family":"NotoSans-Regular","font-size":"1rem","text-decoration":"underline","color":"#1357DD"}),
+					dbc.Col(download_template()),
 						], style={"padding-top":"1rem"}),
 				dbc.Row([
 					dbc.Col(
@@ -862,3 +864,14 @@ def card_collapse_month():
 					], style={"padding-top":"1rem"}),
 			], style={"font-family":"NotoSans-Regular","font-size":"1rem", "padding-left":"1rem", "padding-right":"1rem"}
 		)
+
+def download_template():
+	return html.A(
+                            children=dbc.Button(
+                                "Download the template file",
+                                id='download-template',
+                                color= 'link',
+                            ),
+                            href=os.path.join('data', 'setup.csv'),
+                            download="setup.csv"
+                        )
